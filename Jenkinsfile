@@ -43,10 +43,10 @@ pipeline {
         }
         stage('CODE ANALYSIS WITH SONARQUBE') {
             environment {
-                scannerHome = tool 'sonarscanner'   // Value from Sonar Scanner - Jenkins Tools
+                scannerHome = tool 'sonarscanner'   // Value from SonarQube Scanner - Jenkins Tool Configuration
             }
             steps {
-                withSonarQubeEnv('sonar-pro') {     // value from Jenkins SonarQube - Jenkins Global Config
+                withSonarQubeEnv('sonar-pro') {     // value from Jenkins SonarQube - Configure System
                     sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
                    -Dsonar.projectName=vprofile-repo \
                    -Dsonar.projectVersion=1.0 \
