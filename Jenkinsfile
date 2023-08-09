@@ -1,5 +1,4 @@
 pipeline {
-
     agent any
 /*
 	tools {
@@ -7,13 +6,11 @@ pipeline {
     }
 */
     environment {
-        registry = "imranvisualpath/vproappdock"
-        registryCredential = 'dockerhub'
+        registry = "abhishekm89/app"        // DockerHub Registry path
+        registryCredential = 'dockerhub'    // DockerHub creds saved in Jenkins globalCreds
     }
-
-    stages{
-
-        stage('BUILD'){
+    stages {
+        stage('BUILD') {
             steps {
                 sh 'mvn clean install -DskipTests'
             }
@@ -24,20 +21,17 @@ pipeline {
                 }
             }
         }
-
-        stage('UNIT TEST'){
+        stage('UNIT TEST') {
             steps {
                 sh 'mvn test'
             }
         }
-
-        stage('INTEGRATION TEST'){
+        stage('INTEGRATION TEST') {
             steps {
                 sh 'mvn verify -DskipUnitTests'
             }
         }
-
-        stage ('CODE ANALYSIS WITH CHECKSTYLE'){
+        stage ('CODE ANALYSIS WITH CHECKSTYLE') {
             steps {
                 sh 'mvn checkstyle:checkstyle'
             }
@@ -47,41 +41,12 @@ pipeline {
                 }
             }
         }
-
-
-        stage('Building image') {
-            steps{
-              script {
-                dockerImage = docker.build registry + ":$BUILD_NUMBER"
-              }
-            }
-        }
-        
-        stage('Deploy Image') {
-          steps{
-            script {
-              docker.withRegistry( '', registryCredential ) {
-                dockerImage.push("$BUILD_NUMBER")
-                dockerImage.push('latest')
-              }
-            }
-          }
-        }
-
-        stage('Remove Unused docker image') {
-          steps{
-            sh "docker rmi $registry:$BUILD_NUMBER"
-          }
-        }
-
-        stage('CODE ANALYSIS with SONARQUBE') {
-
+        stage('CODE ANALYSIS WITH SONARQUBE') {
             environment {
-                scannerHome = tool 'mysonarscanner4'
+                scannerHome = tool 'sonarscanner'   // Value from Sonar Scanner - Jenkins Tools
             }
-
             steps {
-                withSonarQubeEnv('sonar-pro') {
+                withSonarQubeEnv('sonar-pro') {     // value from Jenkins SonarQube - Jenkins Global Config
                     sh '''${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=vprofile \
                    -Dsonar.projectName=vprofile-repo \
                    -Dsonar.projectVersion=1.0 \
@@ -97,14 +62,36 @@ pipeline {
                 }
             }
         }
-        stage('Kubernetes Deploy') {
-	  agent { label 'KOPS' }
+        stage('BUILDING IMAGE') {
             steps {
-                    sh "helm upgrade --install --force vproifle-stack helm/vprofilecharts --set appimage=${registry}:${BUILD_NUMBER} --namespace prod"
+                script {
+                    dockerImage = docker.build registry + ":v$BUILD_NUMBER"
+                }
+            }
+        }    
+        stage('DEPLOY IMAGE TO REGISTRY') {
+            steps {
+                script {
+                    docker.withRegistry( '', registryCredential ) {
+                        dockerImage.push("v$BUILD_NUMBER")
+                        dockerImage.push('latest')
+                    }
+                }
             }
         }
-
+        stage('REMOVE UNUSED DOCKER IMAGE') {
+          steps{
+            sh "docker rmi $registry:$BUILD_NUMBER"
+          }
+        }
+        stage('KUBERNETES DEPLOY') {
+	        agent { 
+                label 'KOPS' 
+            }
+            steps {
+                sh "helm upgrade --install --force vprofile-stack helm/vprofilecharts --set appimage=${registry}:v${BUILD_NUMBER} --namespace prod"
+                // helm command will run from KOPS_Server
+            }
+        }
     }
-
-
 }
